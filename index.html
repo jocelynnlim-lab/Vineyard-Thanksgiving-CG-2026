@@ -786,14 +786,13 @@
   // ─── FIREBASE CONFIG ────────────────────────────────────
   // ⚠️ REPLACE everything below with YOUR Firebase project config
   const firebaseConfig = {
-  apiKey: "AIzaSyDMYbu_y-9NpEEmkEDTHOyG5eodXqGiHwQ",
-  authDomain: "endian-2026.firebaseapp.com",
-  databaseURL: "https://endian-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "endian-2026",
-  storageBucket: "endian-2026.firebasestorage.app",
-  messagingSenderId: "535617595958",
-  appId: "1:535617595958:web:74aa3dbf07b0bc80d64697",
-  measurementId: "G-G06E0DD2XR"
+    apiKey: "AIzaSyDMYbu_y-9NpEEmkEDTHOyG5eodXqGiHwQ",
+    authDomain: "endian-2026.firebaseapp.com",
+    projectId: "endian-2026",
+    storageBucket: "endian-2026.firebasestorage.app",
+    messagingSenderId: "535617595958",
+    appId: "1:535617595958:web:74aa3dbf07b0bc80d64697",
+    measurementId: "G-G06E0DD2XR"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
@@ -860,14 +859,30 @@ let editPhotoData = null;
 function previewEditPhoto(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(r) {
-    editPhotoData = r.target.result;
+  compressImage(file, 900, 900, 0.65, function(compressed) {
+    editPhotoData = compressed;
     const preview = document.getElementById('editPhotoPreview');
-    preview.src = editPhotoData;
+    preview.src = compressed;
     preview.style.display = 'block';
     document.getElementById('editUploadIcon').style.display = 'none';
     document.getElementById('editUploadText').textContent = '点击重新选择';
+  });
+}
+
+function compressImage(file, maxW, maxH, quality, callback) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      if (h > maxH) { w = Math.round(w * maxH / h); h = maxH; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -875,15 +890,13 @@ function previewEditPhoto(e) {
 function previewPhoto(e) {
   const file = e.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(r) {
-    photoData = r.target.result;
+  compressImage(file, 900, 900, 0.65, function(compressed) {
+    photoData = compressed;
     const preview = document.getElementById('photoPreview');
-    preview.src = photoData;
+    preview.src = compressed;
     preview.style.display = 'block';
     document.querySelector('.upload-icon').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+  });
 }
 
 function selectRadio(val) {
