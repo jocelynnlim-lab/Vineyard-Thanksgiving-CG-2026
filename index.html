@@ -550,6 +550,9 @@
   }
 
 </style>
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -778,13 +781,27 @@
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-apiKey: "AIzaSyDMYbu_y-9NpEEmkEDTHOyG5eodXqGiHwQ",
-authDomain: "endian-2026.firebaseapp.com",
-projectId: "endian-2026",
-
 <script>
+
+  // ─── FIREBASE CONFIG ────────────────────────────────────
+  // ⚠️ REPLACE everything below with YOUR Firebase project config
+  const firebaseConfig = {
+  apiKey: "AIzaSyDMYbu_y-9NpEEmkEDTHOyG5eodXqGiHwQ",
+  authDomain: "endian-2026.firebaseapp.com",
+  databaseURL: "https://endian-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "endian-2026",
+  storageBucket: "endian-2026.firebasestorage.app",
+  messagingSenderId: "535617595958",
+  appId: "1:535617595958:web:74aa3dbf07b0bc80d64697",
+  measurementId: "G-G06E0DD2XR"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  // ────────────────────────────────────────────────────────
+
 // ─── STATE ───────────────────────────────────────────────
-let posts = JSON.parse(localStorage.getItem('grace_posts') || '[]');
+let posts = []; // populated by Firestore real-time listener
+let unsubscribe = null;
 let consentValue = 'consent';
 let editingId = null;
 const MAX_EDITS = 10;
@@ -797,7 +814,26 @@ function switchTab(tab) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-' + tab).classList.add('active');
   event.target.classList.add('active');
-  if (tab === 'feed') renderFeed();
+  if (tab === 'feed') startFeedListener();
+}
+
+// ─── FIRESTORE LISTENER ───────────────────────────────────
+function startFeedListener() {
+  if (unsubscribe) return; // already listening
+  unsubscribe = db.collection('posts')
+    .onSnapshot(snapshot => {
+      posts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort client-side by timestamp descending
+      posts.sort((a, b) => {
+        const ta = a.timestamp ? a.timestamp.toMillis() : 0;
+        const tb = b.timestamp ? b.timestamp.toMillis() : 0;
+        return tb - ta;
+      });
+      renderFeed();
+    }, err => {
+      console.error('Firestore error:', err);
+      showToast('⚠️ 无法连接数据库，请检查Firestore安全规则');
+    });
 }
 
 // ─── FORM HELPERS ─────────────────────────────────────────
@@ -867,25 +903,38 @@ function submitPost() {
   if (!testimony) { showToast('请分享你的恩典记号 🙏'); return; }
 
   const post = {
-    id: Date.now(),
     name: name,
     groups: groups,
     testimony: testimony,
     keywords: keywords,
     photo: photoData,
     consent: consentValue,
-    time: new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    editCount: 0,
-    reactions: { '感恩': [], '阿们': [], '赞美': [] }
+    time: new Date().toLocaleString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   };
 
-  posts.unshift(post);
-  savePosts();
-  resetForm();
-  showToast('✨ 感谢你的分享！已发布到恩典墙');
-  setTimeout(() => {
-    document.querySelectorAll('.nav-tab')[1].click();
-  }, 800);
+  const postData = {
+    name: post.name,
+    groups: post.groups,
+    testimony: post.testimony,
+    keywords: post.keywords,
+    photo: post.photo || null,
+    consent: post.consent,
+    time: post.time,
+    editCount: 0,
+    reactions: { '感恩': [], '阿们': [], '赞美': [] },
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  db.collection('posts').add(postData)
+    .then(() => {
+      resetForm();
+      showToast('✨ 感谢你的分享！已发布到恩典墙');
+      setTimeout(() => { document.querySelectorAll('.nav-tab')[1].click(); }, 800);
+    })
+    .catch(err => {
+      console.error(err);
+      showToast('⚠️ 提交失败，请检查网络或Firebase配置');
+    });
 }
 
 function resetForm() {
@@ -993,8 +1042,8 @@ function postHTML(p) {
       <div style="text-align:right">
         <div class="post-time">${p.time}</div>
         <div class="post-actions" style="margin-top:6px">
-          ${canEdit ? `<button class="post-btn post-btn-edit" onclick="openEdit(${p.id})">编辑，修改</button>` : ''}
-          <button class="post-btn post-btn-del" onclick="deletePost(${p.id})">删除</button>
+          ${canEdit ? `<button class="post-btn post-btn-edit" onclick="openEdit('${p.id}')">编辑，修改</button>` : ''}
+          <button class="post-btn post-btn-del" onclick="deletePost('${p.id}')">删除</button>
         </div>
         ${p.editCount > 0 ? `<div class="post-edit-count">已编辑 ${p.editCount}/${MAX_EDITS} 次</div>` : ''}
       </div>
@@ -1011,7 +1060,7 @@ function postHTML(p) {
           const reactors = (p.reactions && p.reactions[type]) || [];
           const count = reactors.length;
           const names = reactors.slice(0,3).join('、') + (reactors.length>3?'…':'');
-          return `<button class="react-btn" onclick="toggleReaction(${p.id},'${type}')">
+          return `<button class="react-btn" onclick="toggleReaction('${p.id}','${type}')">
             <div class="react-wrap">
               <span style="display:flex;align-items:center;gap:5px">
                 <span class="react-icon">${icon}</span>
@@ -1063,16 +1112,13 @@ function cancelReactorName() {
 function applyReaction(id, type, name) {
   const p = posts.find(x => x.id === id);
   if (!p) return;
-  if (!p.reactions) p.reactions = { '感恩': [], '阿们': [], '赞美': [] };
-  if (!p.reactions[type]) p.reactions[type] = [];
-  const idx = p.reactions[type].indexOf(name);
-  if (idx > -1) {
-    p.reactions[type].splice(idx, 1);
-  } else {
-    p.reactions[type].push(name);
-  }
-  savePosts();
-  renderFeed();
+  const reactions = p.reactions || { '感恩': [], '阿们': [], '赞美': [] };
+  if (!reactions[type]) reactions[type] = [];
+  const idx = reactions[type].indexOf(name);
+  if (idx > -1) reactions[type].splice(idx, 1);
+  else reactions[type].push(name);
+  db.collection('posts').doc(id).update({ reactions })
+    .catch(err => { console.error(err); showToast('⚠️ 操作失败'); });
 }
 
 // ─── EDIT ─────────────────────────────────────────────────
@@ -1112,29 +1158,26 @@ function saveEdit() {
   if (!p) return;
   const newTestimony = document.getElementById('edit-q3').value.trim();
   if (!newTestimony) { showToast('恩典记号不能为空'); return; }
-  p.testimony = newTestimony;
-  p.keywords = document.getElementById('edit-q4').value.trim();
-  if (editPhotoData) p.photo = editPhotoData;
-  p.editCount = (p.editCount || 0) + 1;
-  savePosts();
-  closeModal();
-  renderFeed();
-  showToast('✅ 修改已保存');
+  const updates = {
+    testimony: newTestimony,
+    keywords: document.getElementById('edit-q4').value.trim(),
+    editCount: (p.editCount || 0) + 1
+  };
+  if (editPhotoData) updates.photo = editPhotoData;
+  db.collection('posts').doc(editingId).update(updates)
+    .then(() => { closeModal(); showToast('✅ 修改已保存'); })
+    .catch(err => { console.error(err); showToast('⚠️ 保存失败'); });
 }
 
 // ─── DELETE ───────────────────────────────────────────────
 function deletePost(id) {
   if (!confirm('确定要删除这条分享吗？')) return;
-  posts = posts.filter(x => x.id !== id);
-  savePosts();
-  renderFeed();
-  showToast('🗑️ 分享已删除');
+  db.collection('posts').doc(id).delete()
+    .then(() => showToast('🗑️ 分享已删除'))
+    .catch(err => { console.error(err); showToast('⚠️ 删除失败'); });
 }
 
-// ─── STORAGE ──────────────────────────────────────────────
-function savePosts() {
-  localStorage.setItem('grace_posts', JSON.stringify(posts));
-}
+// (data stored in Firebase Firestore)
 
 // ─── CHAT ─────────────────────────────────────────────────
 const chatOpen = { val: false };
