@@ -263,7 +263,7 @@
   .post-edit-count { font-size: 0.7rem; color: var(--text-light); text-align: right; }
 
   .post-body { padding: 14px 20px; }
-  .post-photo { width: 100%; max-height: 340px; object-fit: cover; display: block; }
+  .post-photo { width: 100%; height: auto; max-height: 600px; object-fit: contain; display: block; background: #f5f0e8; }
   .post-testimony {
     font-size: 0.95rem; line-height: 1.75; color: var(--text-dark);
     padding: 14px 20px 4px;
@@ -549,6 +549,53 @@
     .site-header img { width: 58px; height: 58px; }
   }
 
+
+  /* ─── VIEW TOGGLE ─── */
+  .view-toggle { display: flex; gap: 4px; }
+  .view-btn {
+    width: 34px; height: 34px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: #fffdf7;
+    cursor: pointer; display: flex; align-items: center;
+    justify-content: center; font-size: 1rem; transition: all 0.2s;
+    color: var(--text-light);
+  }
+  .view-btn:hover { border-color: var(--gold); background: #fff7e8; }
+  .view-btn.active { background: var(--gold); border-color: var(--gold); color: #fff; }
+
+  /* Grid view */
+  #feedContainer.grid-view {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+  @media (max-width: 480px) {
+    #feedContainer.grid-view { grid-template-columns: 1fr 1fr; gap: 8px; }
+  }
+  #feedContainer.grid-view .post-card { margin-bottom: 0; }
+  #feedContainer.grid-view .post-photo {
+    width: 100%; height: auto; max-height: 320px;
+    object-fit: contain; background: #f5f0e8;
+  }
+  #feedContainer.grid-view .post-testimony { padding: 8px 10px 4px; }
+  #feedContainer.grid-view .post-testimony .q-text {
+    font-size: 0.78rem; line-height: 1.5;
+    display: -webkit-box; -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #feedContainer.grid-view .post-header { padding: 10px 10px 0; }
+  #feedContainer.grid-view .post-avatar { width: 32px; height: 32px; font-size: 0.8rem; }
+  #feedContainer.grid-view .post-name { font-size: 0.82rem; }
+  #feedContainer.grid-view .post-group { font-size: 0.68rem; }
+  #feedContainer.grid-view .post-tags-inline { display: none; }
+  #feedContainer.grid-view .post-time { font-size: 0.65rem; }
+  #feedContainer.grid-view .post-actions { display: none; }
+  #feedContainer.grid-view .post-edit-count { display: none; }
+  #feedContainer.grid-view .post-footer { padding: 6px 10px 10px; flex-direction: row; align-items: center; }
+  #feedContainer.grid-view .reactions-row { gap: 4px; }
+  #feedContainer.grid-view .react-btn { padding: 3px 7px; font-size: 0.72rem; }
+  #feedContainer.grid-view .react-names { display: none; }
+  #feedContainer.grid-view .consent-badge { display: none; }
+
 </style>
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -562,6 +609,7 @@
   <h1>恩典的记号 <span>·</span> 回顾恩典</h1>
   <p class="verse"><strong>「你以恩典为年岁的冠冕；你的路径都滴下脂油。」— 诗篇 65:11</strong></p>
   <p class="event-info">✝ 2026年葡萄园团契 · 11月20日 感恩聚会 &nbsp;|&nbsp; <strong>请于 2026年9月30日前 填写</strong></p>
+  <p style="margin-top:7px;font-size:0.82rem;background:rgba(255,80,80,0.18);color:#ffe0e0;border:1px solid rgba(255,120,120,0.35);border-radius:20px;display:inline-block;padding:4px 16px;letter-spacing:0.3px;">⚠️ 此网页将在9月30日后就撤下</p>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchTab('form')">✍️ 填写回顾</button>
     <button class="nav-tab" onclick="switchTab('feed')">💛 恩典墙</button>
@@ -706,7 +754,13 @@
   <div id="panel-feed" class="panel">
     <div class="feed-header">
       <div class="feed-title">💛 恩典墙 — 每一个恩典都在述说神的信实</div>
-      <div class="feed-count" id="feedCount"></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="feed-count" id="feedCount"></div>
+        <div class="view-toggle">
+          <button class="view-btn active" id="btnList" onclick="setView('list')" title="列表视图">☰</button>
+          <button class="view-btn" id="btnGrid" onclick="setView('grid')" title="宫格视图">⊞</button>
+        </div>
+      </div>
     </div>
     <!-- Filter bar -->
     <div class="filter-bar">
@@ -967,6 +1021,16 @@ function resetForm() {
 }
 
 // ─── FEED ─────────────────────────────────────────────────
+// ─── VIEW TOGGLE ──────────────────────────────────────────
+let currentView = 'list';
+function setView(view) {
+  currentView = view;
+  const container = document.getElementById('feedContainer');
+  container.classList.toggle('grid-view', view === 'grid');
+  document.getElementById('btnList').classList.toggle('active', view === 'list');
+  document.getElementById('btnGrid').classList.toggle('active', view === 'grid');
+}
+
 function setFilter(group) {
   activeFilter = group;
   renderFeed();
